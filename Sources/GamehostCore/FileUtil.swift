@@ -77,9 +77,9 @@ enum FileUtil {
         }
     }
 
-    static func readlink(_ url: URL) -> String? {
+    static func readLink(_ url: URL) -> String? {
         var buf = [CChar](repeating: 0, count: 4096)
-        let n = Foundation.readlink(url.path, &buf, buf.count - 1)
+        let n = readlink(url.path, &buf, buf.count - 1)
         guard n > 0 else { return nil }
         return String(decoding: buf[0..<n].map { UInt8(bitPattern: $0) }, as: UTF8.self)
     }

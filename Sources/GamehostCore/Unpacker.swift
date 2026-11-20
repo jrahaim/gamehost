@@ -88,8 +88,9 @@ public enum Unpacker {
         for p in planned {
             let rel = p.components.joined(separator: "/")
             let target = dest.appendingPathComponent(rel, isDirectory: p.isDirectory)
-            // Defence in depth: the resolved path must stay under dest.
-            guard target.standardizedFileURL.path.hasPrefix(dest.standardizedFileURL.path + "/") else {
+            // Defence in depth: components were validated in pass 1; re-check before touching the filesystem.
+            // (Symlinks cannot exist under dest: none are ever created and files are opened with O_NOFOLLOW.)
+            guard p.components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." && !$0.contains("/") }) else {
                 throw invalid("The bundle contains a path that escapes the bundle root.", [p.entry.path])
             }
             if p.isDirectory {

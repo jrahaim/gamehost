@@ -102,7 +102,7 @@ public struct Storage: Sendable {
     // MARK: Releases
 
     public func currentReleaseID(_ key: String) -> String? {
-        guard let target = FileUtil.readlink(currentLink(key)) else { return nil }
+        guard let target = FileUtil.readLink(currentLink(key)) else { return nil }
         // target is "releases/<id>"
         return target.split(separator: "/").last.map(String.init)
     }

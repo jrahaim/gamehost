@@ -1,0 +1,15 @@
+services:
+  gamehost:
+    image: gamehost:latest
+    build: .
+    restart: unless-stopped
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      GAMEHOST_BASE_DOMAIN: games.example.com
+      GAMEHOST_ADMIN_TOKEN: ${GAMEHOST_ADMIN_TOKEN:?set GAMEHOST_ADMIN_TOKEN (at least 32 characters)}
+      GAMEHOST_ACME_EMAIL: you@example.com
+      # GAMEHOST_TLS_MODE: external   # behind an existing proxy; then publish "8081:8081" instead
+    volumes:
+      - gamehost-data:/data
+volumes:
+  gamehost-data:

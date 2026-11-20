@@ -1,0 +1,18 @@
+# gamehost.toml — lives at the root of a game repo. Reference: docs/manifest.md
+name = "mygame"          # served at https://mygame.<base domain>/
+dir  = "build/web"       # where the Web export lands (CI zips the contents of this directory)
+
+# entry = "index.html"   # must exist at the root of the bundle
+
+[headers]
+# Threaded Godot 4 web exports need SharedArrayBuffer, which needs cross-origin isolation.
+cross_origin_isolation = false
+
+[headers.custom]
+# "Permissions-Policy" = "gamepad=(self)"
+
+[cache]
+max_age = 0              # 0 = browsers revalidate every load (cheap 304s for unchanged files)
+
+[releases]
+keep = 5                 # releases kept for rollback (1-50)

@@ -1,0 +1,68 @@
+# .github/workflows/deploy.yml — export a Godot project for the Web and deploy it to gamehost.
+#
+# Repository secrets:  GAMEHOST_URL   e.g. https://deploy.games.example.com
+#                      GAMEHOST_TOKEN the site's deploy token (from POST /api/sites)
+# Requirements:
+#   - a "Web" export preset in export_presets.cfg (commit that file);
+#   - gamehost.toml at the repo root whose `dir` matches EXPORT_DIR below;
+#   - GODOT_VERSION and the image tag pinned to the project's exact engine version.
+#
+# Pushes to main deploy production. Pull requests deploy a preview at <name>--pr-<number>.<base domain>.
+name: Deploy web build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  GODOT_VERSION: "4.7.2"
+  PROJECT_PATH: "."          # directory containing project.godot
+  EXPORT_DIR: build/web      # must equal `dir` in gamehost.toml
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    container:
+      image: barichello/godot-ci:4.7.2   # keep in sync with GODOT_VERSION
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          lfs: true
+
+      - name: Install export templates
+        # The image keeps templates under /root, but container jobs run with HOME=/github/home.
+        run: |
+          mkdir -p ~/.local/share/godot/export_templates
+          mv /root/.local/share/godot/export_templates/${GODOT_VERSION}.stable \
+             ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+
+      - name: Export
+        run: |
+          mkdir -p "$EXPORT_DIR"
+          out="$(readlink -f "$EXPORT_DIR")"
+          cd "$PROJECT_PATH"
+          godot --headless --export-release "Web" "$out/index.html"
+
+      - name: Bundle
+        run: |
+          command -v zip >/dev/null && command -v curl >/dev/null || { apt-get update && apt-get install -y zip curl; }
+          cd "$EXPORT_DIR" && zip -qr "$GITHUB_WORKSPACE/bundle.zip" .
+
+      - name: Deploy
+        env:
+          GAMEHOST_URL: ${{ secrets.GAMEHOST_URL }}
+          GAMEHOST_TOKEN: ${{ secrets.GAMEHOST_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REF_NAME: ${{ github.head_ref || github.ref_name }}
+        run: |
+          preview=()
+          if [ -n "$PR_NUMBER" ]; then preview=(--form-string "preview=pr-${PR_NUMBER}"); fi
+          curl -sS --fail-with-body -X POST "$GAMEHOST_URL/api/deploy" \
+            -H "Authorization: Bearer $GAMEHOST_TOKEN" \
+            -F "manifest=@gamehost.toml" \
+            -F "bundle=@bundle.zip" \
+            --form-string "commit=$GITHUB_SHA" \
+            --form-string "ref=$REF_NAME" \
+            "${preview[@]}"
