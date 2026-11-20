@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds the image, runs it in TLS_MODE=external, and runs the acceptance tests against the container.
-#   tests/integration/run-docker.sh [test-name-filter...]
+#   Tests/integration/run-docker.sh [test-name-filter...]
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../.." && pwd)

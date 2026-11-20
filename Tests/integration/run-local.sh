@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds gamehost, starts a native stack in a temp dir, runs the acceptance tests, stops the stack.
-#   tests/integration/run-local.sh [test-name-filter...]
+#   Tests/integration/run-local.sh [test-name-filter...]
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../.." && pwd)

@@ -217,9 +217,9 @@ swift test                                   # unit tests
 GAMEHOST_TEST_CADDY=$(which caddy) swift test   # also round-trips generated config through Caddy
 
 # Acceptance tests (spec §14, 1–13) against a native Caddy + API stack, no Docker needed:
-CADDY_BIN=$(which caddy) tests/integration/run-local.sh
+CADDY_BIN=$(which caddy) Tests/integration/run-local.sh
 # …or against the built image:
-tests/integration/run-docker.sh
+Tests/integration/run-docker.sh
 ```
 
 `gamehost print-caddyfile` prints the main Caddyfile the current environment would produce.
