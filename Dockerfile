@@ -9,6 +9,8 @@ WORKDIR /src
 COPY Package.swift Package.resolved ./
 RUN swift package resolve
 COPY Sources ./Sources
+# Not built, but SwiftPM refuses a package whose declared test target has no sources.
+COPY Tests/GamehostCoreTests ./Tests/GamehostCoreTests
 RUN swift build -c release --product gamehost --static-swift-stdlib \
  && install -D .build/release/gamehost /out/gamehost
 

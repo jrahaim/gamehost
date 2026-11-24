@@ -2,6 +2,8 @@
 .swiftpm
 .git
 Tests
+# SwiftPM needs the unit-test target's sources to resolve the package (build stage only).
+!Tests/GamehostCoreTests
 docs
 examples
 *.md
