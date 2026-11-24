@@ -48,9 +48,20 @@ games, but heavy preview use is the reason a wildcard mode is planned.
 
 ### Behind an existing reverse proxy
 
-If something else already owns ports 80/443, set `GAMEHOST_TLS_MODE=external` and publish `8081:8081` instead.
+If something else already owns ports 80/443, set `GAMEHOST_TLS_MODE=external` and publish `127.0.0.1:8081:8081`
+instead ([`examples/compose.external.yml`](examples/compose.external.yml) is a ready stack using the published image).
 Caddy then serves plain HTTP on 8081 and your proxy must forward `*.games.example.com` there with the `Host` header
 preserved. Set `GAMEHOST_TRUSTED_PROXIES` to the proxy's address so per-IP auth rate limiting sees real client IPs.
+The API reports game URLs as `https://{name}.{BASE_DOMAIN}/`, which is what players reach through the proxy; change
+that with `GAMEHOST_PUBLIC_SCHEME` / `GAMEHOST_PUBLIC_PORT`. First deploys of a large engine `.wasm` spend a minute or
+more compressing, so give the proxy a generous upstream timeout (for example 10 minutes).
+
+### Prebuilt image
+
+`.github/workflows/image.yml` publishes `ghcr.io/<owner>/gamehost:latest` on every push to `main` (plus `:sha-…`
+and version tags). Use `image: ghcr.io/<owner>/gamehost:latest` instead of `build: .` to skip building on the server.
+If the package is private, log the server in to ghcr.io (or add the registry in Portainer) with a token that has
+`read:packages`.
 
 ## 3. Configuration
 
@@ -66,6 +77,8 @@ preserved. Set `GAMEHOST_TRUSTED_PROXIES` to the proxy's address so per-IP auth 
 | `GAMEHOST_MAX_FILES` | no | `20000` | Max entries per zip. |
 | `GAMEHOST_PREVIEW_TTL_DAYS` | no | `14` | Previews whose last deploy is older than this are deleted (checked daily). |
 | `GAMEHOST_TRUSTED_PROXIES` | no | — | Space/comma separated IPs or CIDRs of proxies in front of Caddy. |
+| `GAMEHOST_PUBLIC_SCHEME` | no | `https` | Scheme of the game URLs the API reports. Set `http` only in `external` mode when nothing in front terminates TLS. |
+| `GAMEHOST_PUBLIC_PORT` | no | — | Port of the game URLs the API reports, if players don't use the scheme's default port. |
 
 Ports and paths inside the container (`GAMEHOST_DATA_DIR`, `GAMEHOST_EXTERNAL_PORT`, `GAMEHOST_API_LISTEN_PORT`,
 `GAMEHOST_CADDY_ADMIN`, `GAMEHOST_CADDY_BIN`) can be overridden for local development but should be left alone in

@@ -20,6 +20,11 @@ public struct Config: Sendable {
     public var maxFiles: Int
     public var previewTTLDays: Int
     public var trustedProxies: [String]
+    /// Scheme of the public game URLs reported by the API. In `external` mode this is what the fronting proxy
+    /// serves, not what Caddy listens on.
+    public var publicScheme: String
+    /// Port of the public game URLs, when it is not the scheme's default.
+    public var publicPort: Int?
 
     /// Root of the data volume (`/data` in the image).
     public var dataDir: URL
@@ -101,6 +106,18 @@ public struct Config: Sendable {
             throw Invalid(description: "GAMEHOST_TRUSTED_PROXIES entry \"\(p)\" is not an IP or CIDR")
         }
 
+        let scheme = value("PUBLIC_SCHEME")?.lowercased() ?? "https"
+        guard scheme == "https" || scheme == "http" else {
+            throw Invalid(description: "GAMEHOST_PUBLIC_SCHEME must be https or http")
+        }
+        if mode == .perSite && scheme != "https" {
+            throw Invalid(description: "GAMEHOST_PUBLIC_SCHEME must be https when GAMEHOST_TLS_MODE=per-site")
+        }
+        publicScheme = scheme
+        let port = value("PUBLIC_PORT") == nil ? nil : try int("PUBLIC_PORT", 0, min: 1)
+        if let port, port > 65535 { throw Invalid(description: "GAMEHOST_PUBLIC_PORT must be 1-65535") }
+        publicPort = (port == 443 && scheme == "https") || (port == 80 && scheme == "http") ? nil : port
+
         dataDir = URL(fileURLWithPath: value("DATA_DIR") ?? "/data", isDirectory: true)
         caddyfilePath = URL(fileURLWithPath: value("CADDYFILE") ?? dataDir.appendingPathComponent("caddy/Caddyfile").path)
         caddyBinary = value("CADDY_BIN") ?? "caddy"
@@ -117,11 +134,9 @@ public struct Config: Sendable {
 
     public func host(forKey key: String) -> String { "\(key).\(baseDomain)" }
 
+    /// Public URL of a site or preview, as players reach it.
     public func url(forKey key: String) -> String {
-        switch tlsMode {
-        case .external: return "http://\(host(forKey: key)):\(externalPort)/"
-        default: return "https://\(host(forKey: key))/"
-        }
+        "\(publicScheme)://\(host(forKey: key))\(publicPort.map { ":\($0)" } ?? "")/"
     }
 
     static func isHostname(_ s: String) -> Bool {

@@ -111,4 +111,18 @@ final class CaddyConfigTests: XCTestCase {
         let c = try testConfig(dataDir: dir, extra: ["GAMEHOST_API_HOST": "ship.games.test"])
         XCTAssertEqual(c.apiHostFirstLabel, "ship")
     }
+
+    func testPublicURLs() throws {
+        // external mode defaults to https with no port: the fronting proxy terminates TLS.
+        XCTAssertEqual(try testConfig(dataDir: dir, mode: "external").url(forKey: "mygame"), "https://mygame.games.test/")
+        XCTAssertEqual(try testConfig(dataDir: dir, mode: "per-site").url(forKey: "a--pr-1"), "https://a--pr-1.games.test/")
+        let local = try testConfig(dataDir: dir, mode: "external",
+                                   extra: ["GAMEHOST_PUBLIC_SCHEME": "http", "GAMEHOST_PUBLIC_PORT": "18081"])
+        XCTAssertEqual(local.url(forKey: "mygame"), "http://mygame.games.test:18081/")
+        let defaultPort = try testConfig(dataDir: dir, mode: "external", extra: ["GAMEHOST_PUBLIC_PORT": "443"])
+        XCTAssertEqual(defaultPort.url(forKey: "mygame"), "https://mygame.games.test/")
+        XCTAssertThrowsError(try testConfig(dataDir: dir, mode: "external", extra: ["GAMEHOST_PUBLIC_SCHEME": "ftp"]))
+        XCTAssertThrowsError(try testConfig(dataDir: dir, mode: "external", extra: ["GAMEHOST_PUBLIC_PORT": "70000"]))
+        XCTAssertThrowsError(try testConfig(dataDir: dir, mode: "per-site", extra: ["GAMEHOST_PUBLIC_SCHEME": "http"]))
+    }
 }

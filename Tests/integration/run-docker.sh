@@ -15,7 +15,7 @@ docker build -t gamehost:test "$root"
 trap 'docker logs "$name" > "${TMPDIR:-/tmp}/$name.log" 2>&1 || true; docker rm -f "$name" >/dev/null 2>&1 || true; docker volume rm "$name" >/dev/null 2>&1 || true' EXIT
 docker run -d --name "$name" -p "127.0.0.1:$port:8081" -v "$name:/data" \
   -e GAMEHOST_BASE_DOMAIN -e GAMEHOST_ADMIN_TOKEN -e GAMEHOST_MAX_UPLOAD_MB -e GAMEHOST_MAX_UNPACKED_MB \
-  -e GAMEHOST_TLS_MODE=external gamehost:test >/dev/null
+  -e GAMEHOST_TLS_MODE=external -e GAMEHOST_PUBLIC_SCHEME=http -e GAMEHOST_PUBLIC_PORT="$port" gamehost:test >/dev/null
 for _ in $(seq 100); do
   curl -fsS -H "Host: deploy.games.test" "http://127.0.0.1:$port/healthz" >/dev/null 2>&1 && break
   sleep 0.3
