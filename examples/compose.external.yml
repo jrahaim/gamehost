@@ -1,0 +1,18 @@
+# gamehost behind an existing reverse proxy (Apache, nginx, Traefik…) that terminates TLS for *.BASE_DOMAIN
+# and forwards to 127.0.0.1:8081 with the Host header preserved. Suitable as a Portainer stack.
+# Set GAMEHOST_ADMIN_TOKEN (32+ characters) as a stack environment variable; never commit it.
+services:
+  gamehost:
+    image: ghcr.io/jrahaim/gamehost:latest
+    restart: unless-stopped
+    ports: ["127.0.0.1:8081:8081"]   # loopback only: reachable through the proxy, not directly
+    environment:
+      GAMEHOST_BASE_DOMAIN: games.example.com
+      GAMEHOST_ADMIN_TOKEN: ${GAMEHOST_ADMIN_TOKEN:?set GAMEHOST_ADMIN_TOKEN (at least 32 characters)}
+      GAMEHOST_TLS_MODE: external
+      # The proxy reaches the container from the Docker bridge gateway; trust it for X-Forwarded-For.
+      GAMEHOST_TRUSTED_PROXIES: 172.16.0.0/12
+    volumes:
+      - gamehost-data:/data
+volumes:
+  gamehost-data:
