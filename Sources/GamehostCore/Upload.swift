@@ -137,8 +137,12 @@ enum UploadReceiver {
             partStarted = false
         }
 
+        // One iterator for the whole body: after a rejection we keep pulling from it to drain what the client is
+        // still sending. Answering mid-upload and closing makes a fronting proxy (e.g. Apache) hit a broken pipe
+        // and replace our JSON error with its own 502.
+        var chunks = req.body.makeAsyncIterator()
         do {
-            for try await chunk in req.body {
+            while let chunk = try await chunks.next() {
                 try parser.execute(chunk)
                 let batch = events.items
                 events.items.removeAll(keepingCapacity: true)
@@ -161,6 +165,11 @@ enum UploadReceiver {
             }
         } catch let e as APIError {
             cleanup()
+            // Bounded: never read more than an allowed upload in total, so a rejected client can't keep us busy.
+            var remaining = maxBundleBytes + 1024 * 1024
+            while remaining > 0, let chunk = try? await chunks.next() {
+                remaining -= Int64(chunk.readableBytes)
+            }
             throw e
         } catch {
             cleanup()
