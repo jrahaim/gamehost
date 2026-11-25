@@ -12,6 +12,7 @@ trap '"$here/local-stack.sh" stop "$state"; echo "logs: $state"' EXIT
 
 export GAMEHOST_BASE_DOMAIN=${GAMEHOST_BASE_DOMAIN:-games.test}
 export GAMEHOST_ADMIN_TOKEN=${GAMEHOST_ADMIN_TOKEN:-local-test-admin-token-0123456789abcdef}
+export GAMEHOST_INDEX_HOST=${GAMEHOST_INDEX_HOST:-arcade.games.test}
 export GAMEHOST_TEST_URL="http://127.0.0.1:${GAMEHOST_EXTERNAL_PORT:-18081}"
 export GAMEHOST_MAX_UPLOAD_MB=${GAMEHOST_MAX_UPLOAD_MB:-8}
 export GAMEHOST_MAX_UNPACKED_MB=${GAMEHOST_MAX_UNPACKED_MB:-24}

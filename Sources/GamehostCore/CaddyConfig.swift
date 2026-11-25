@@ -55,7 +55,7 @@ public enum CaddyConfig {
         \tlog
         }
 
-        # Sites (one generated snippet per site and preview)
+        \(indexBlock(config, storage: storage))# Sites (one generated snippet per site and preview)
         import \(quote(storage.snippetsDir.path + "/*.caddy"))
 
         """
@@ -80,6 +80,26 @@ public enum CaddyConfig {
             """
         }
         return out
+    }
+
+    /// The games index host, when enabled: static files from `/data/index`.
+    static func indexBlock(_ config: Config, storage: Storage) -> String {
+        guard let host = config.indexHost else { return "" }
+        return """
+        # Games index
+        \(siteAddress(host: host, config: config)) {
+        \troot * \(quote(storage.indexDir.path))
+        \tencode zstd gzip
+        \theader {
+        \t\tX-Content-Type-Options "nosniff"
+        \t\tCache-Control "no-cache"
+        \t}
+        \tfile_server
+        \tlog
+        }
+
+
+        """
     }
 
     static func siteAddress(host: String, config: Config) -> String {

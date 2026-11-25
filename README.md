@@ -79,6 +79,8 @@ If the package is private, log the server in to ghcr.io (or add the registry in 
 | `GAMEHOST_TRUSTED_PROXIES` | no | — | Space/comma separated IPs or CIDRs of proxies in front of Caddy. |
 | `GAMEHOST_PUBLIC_SCHEME` | no | `https` | Scheme of the game URLs the API reports. Set `http` only in `external` mode when nothing in front terminates TLS. |
 | `GAMEHOST_PUBLIC_PORT` | no | — | Port of the game URLs the API reports, if players don't use the scheme's default port. |
+| `GAMEHOST_INDEX_HOST` | no | — | Hostname of the public games index, e.g. `games.example.com`. Off when unset. If it sits directly under the base domain, its first label becomes a reserved site name. |
+| `GAMEHOST_INDEX_TITLE` | no | `Games` | Heading of the games index page. |
 
 Ports and paths inside the container (`GAMEHOST_DATA_DIR`, `GAMEHOST_EXTERNAL_PORT`, `GAMEHOST_API_LISTEN_PORT`,
 `GAMEHOST_CADDY_ADMIN`, `GAMEHOST_CADDY_BIN`) can be overridden for local development but should be left alone in
@@ -176,6 +178,15 @@ not recompressed, so later deploys of the same engine version are fast.
 names (the example workflow uses `pr-<number>`). A preview keeps one release, is authorised by its parent site's
 token, is deleted with its site, and is removed automatically `GAMEHOST_PREVIEW_TTL_DAYS` after its last deploy.
 
+## 6a. Games index
+
+With `GAMEHOST_INDEX_HOST` set, gamehost serves a public page there listing the sites that opt in with
+`[listing] listed = true` in their manifest: cover, title and description, linking to the game. It is static HTML
+regenerated on every production deploy, rollback and site deletion (and at startup), plus `/index.json`. Covers come
+from each game's bundle; see [docs/manifest.md](docs/manifest.md#games-index). The index hostname needs the same
+DNS/TLS treatment as the game hosts (a wildcard record and certificate for the base domain already cover
+`games.{BASE_DOMAIN}`).
+
 ## 7. On-disk layout, backup and restore
 
 ```
@@ -190,6 +201,7 @@ token, is deleted with its site, and is removed automatically `GAMEHOST_PREVIEW_
 │   └── releases/{release_id}/
 │       ├── release.json         # manifest, commit, ref, sizes, deployer token id, per-file hashes
 │       └── files/               # the game (+ .br / .gz sidecars); this is what Caddy serves
+├── index/                       # games index: index.html + index.json (regenerated)
 ├── tokens.json                  # [{id, site, sha256, created}], mode 0600
 └── tmp/
 ```

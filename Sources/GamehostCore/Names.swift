@@ -5,18 +5,26 @@ enum Names {
 
     /// Validates a site name. Returns a list of problems (empty when valid).
     static func problems(siteName name: String, apiHostLabel: String) -> [String] {
+        problems(siteName: name, reservedLabels: [apiHostLabel])
+    }
+
+    /// `reservedLabels`: hostnames gamehost itself answers on under the base domain (API, games index).
+    static func problems(siteName name: String, reservedLabels: Set<String>) -> [String] {
         var out: [String] = []
         if !matchesSiteName(name) {
             out.append("name must be 1-40 characters of a-z, 0-9 and '-', not starting or ending with '-'")
         }
         if name.contains("--") { out.append("name must not contain '--' (reserved as the preview separator)") }
-        if reserved.contains(name) || name == apiHostLabel { out.append("name \"\(name)\" is reserved") }
+        if reserved.contains(name) || reservedLabels.contains(name) { out.append("name \"\(name)\" is reserved") }
         return out
     }
 
     static func isValidSiteName(_ name: String, apiHostLabel: String) -> Bool {
         problems(siteName: name, apiHostLabel: apiHostLabel).isEmpty
     }
+
+    /// Cover images the games index will show.
+    static let coverExtensions: Set<String> = ["png", "jpg", "jpeg", "webp", "avif", "gif"]
 
     /// `^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$`
     static func matchesSiteName(_ s: String) -> Bool {

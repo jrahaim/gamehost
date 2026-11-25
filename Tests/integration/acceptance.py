@@ -13,6 +13,7 @@ Environment:
   GAMEHOST_TEST_RESTART_CMD   shell command that restarts the stack (restart test skipped if unset)
   GAMEHOST_TEST_TMP_CHECK_CMD shell command that lists /data/tmp; output must be empty after restart
   GAMEHOST_TEST_RELEASES_CMD  shell command listing a site's release dirs; {key} is substituted
+  GAMEHOST_INDEX_HOST         the stack's games index host (index test skipped if unset)
 """
 import http.client
 import io
@@ -33,6 +34,7 @@ DOMAIN = os.environ["GAMEHOST_BASE_DOMAIN"]
 API_HOST = os.environ.get("GAMEHOST_API_HOST") or f"deploy.{DOMAIN}"
 ADMIN = os.environ["GAMEHOST_ADMIN_TOKEN"]
 MAX_UPLOAD_MB = int(os.environ.get("GAMEHOST_MAX_UPLOAD_MB", "512"))
+INDEX_HOST = os.environ.get("GAMEHOST_INDEX_HOST")
 MAX_UNPACKED_MB = int(os.environ.get("GAMEHOST_MAX_UNPACKED_MB", "2048"))
 RUN = uuid.uuid4().hex[:6]
 HOSTPORT = urllib.parse.urlsplit(BASE).netloc
@@ -485,6 +487,38 @@ def t16_delete_site():
     eq(site_get(name).status, 404)
     eq(site_get(f"{name}--pr").status, 404)
     eq(api("GET", f"/api/sites/{name}").status, 404)
+
+
+@test
+def t17_games_index():
+    if not INDEX_HOST:
+        raise Skip("GAMEHOST_INDEX_HOST not set")
+    name = f"listed-{RUN}"
+    create_site(name)
+    listing = '[listing]\ntitle = "Listed <Game>"\ndescription = "A & B"\ncover = "cover.png"\nlisted = true\n'
+    r = deploy(manifest(name, listing), make_zip({"index.html": "<p>game</p>", "cover.png": b"\x89PNG fake"}))
+    eq(r.status, 201, str(r))
+    release = r.json()["release"]
+
+    idx = request("GET", INDEX_HOST, "/index.json")
+    eq(idx.status, 200, str(idx))
+    games = {g["name"]: g for g in idx.json()["games"]}
+    assert name in games, games.keys()
+    eq(games[name]["title"], "Listed <Game>")
+    assert games[name]["cover"].endswith(f"/cover.png?v={release}"), games[name]
+
+    page = request("GET", INDEX_HOST, "/")
+    eq(page.status, 200)
+    assert page.headers.get("content-type", "").startswith("text/html"), page.headers
+    eq(page.headers.get("cache-control"), "no-cache")
+    assert b"Listed &lt;Game&gt;" in page.body and b"A &amp; B" in page.body, page.body[:500]
+    eq(site_get(name, "/cover.png").status, 200, "cover served from the game's own host")
+
+    # A preview with a listing never appears; deleting the site removes it.
+    eq(deploy(manifest(name, listing), make_zip({"index.html": "p", "cover.png": b"x"}), preview="pr-9").status, 201)
+    assert [g["name"] for g in request("GET", INDEX_HOST, "/index.json").json()["games"]].count(name) == 1
+    eq(api("DELETE", f"/api/sites/{name}").status, 200)
+    assert name not in [g["name"] for g in request("GET", INDEX_HOST, "/index.json").json()["games"]]
 
 
 @test
