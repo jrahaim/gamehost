@@ -20,6 +20,10 @@ public struct Config: Sendable {
     public var maxFiles: Int
     public var previewTTLDays: Int
     public var trustedProxies: [String]
+    /// Hostname of the public games index (`GAMEHOST_INDEX_HOST`), nil when disabled.
+    public var indexHost: String?
+    /// Heading and page title of the games index.
+    public var indexTitle: String
     /// Scheme of the public game URLs reported by the API. In `external` mode this is what the fronting proxy
     /// serves, not what Caddy listens on.
     public var publicScheme: String
@@ -106,6 +110,18 @@ public struct Config: Sendable {
             throw Invalid(description: "GAMEHOST_TRUSTED_PROXIES entry \"\(p)\" is not an IP or CIDR")
         }
 
+        if let ih = value("INDEX_HOST")?.lowercased() {
+            guard Config.isHostname(ih) else { throw Invalid(description: "GAMEHOST_INDEX_HOST is not a valid hostname") }
+            guard ih != api else { throw Invalid(description: "GAMEHOST_INDEX_HOST must differ from the API host") }
+            indexHost = ih
+        } else {
+            indexHost = nil
+        }
+        indexTitle = value("INDEX_TITLE") ?? "Games"
+        if let p = Manifest.textProblem(indexTitle, max: 80, allowEmpty: false) {
+            throw Invalid(description: "GAMEHOST_INDEX_TITLE \(p)")
+        }
+
         let scheme = value("PUBLIC_SCHEME")?.lowercased() ?? "https"
         guard scheme == "https" || scheme == "http" else {
             throw Invalid(description: "GAMEHOST_PUBLIC_SCHEME must be https or http")
@@ -131,6 +147,22 @@ public struct Config: Sendable {
 
     /// The first DNS label of the API host; reserved as a site name.
     public var apiHostFirstLabel: String { String(apiHost.split(separator: ".").first ?? "") }
+
+    /// Site names that would collide with hostnames gamehost serves itself: the API host's first label, and the
+    /// index host's when it sits directly under the base domain.
+    public var reservedSiteLabels: Set<String> {
+        var out: Set<String> = [apiHostFirstLabel]
+        if let ih = indexHost, ih.hasSuffix(".\(baseDomain)") {
+            let label = String(ih.dropLast(baseDomain.count + 1))
+            if !label.contains(".") { out.insert(label) }
+        }
+        return out
+    }
+
+    /// Public URL of the games index.
+    public var indexURL: String? {
+        indexHost.map { "\(publicScheme)://\($0)\(publicPort.map { ":\($0)" } ?? "")/" }
+    }
 
     public func host(forKey key: String) -> String { "\(key).\(baseDomain)" }
 

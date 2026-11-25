@@ -54,6 +54,8 @@ public struct Storage: Sendable {
     public var snippetsDir: URL { caddyDir.appendingPathComponent("sites", isDirectory: true) }
     public var caddyState: URL { caddyDir.appendingPathComponent("state", isDirectory: true) }
     public var tokensFile: URL { root.appendingPathComponent("tokens.json") }
+    /// The generated games index (`index.html`, `index.json`), served on `GAMEHOST_INDEX_HOST`.
+    public var indexDir: URL { root.appendingPathComponent("index", isDirectory: true) }
 
     public func siteDir(_ key: String) -> URL { sitesDir.appendingPathComponent(key, isDirectory: true) }
     public func siteFile(_ key: String) -> URL { siteDir(key).appendingPathComponent("site.json") }
@@ -67,7 +69,7 @@ public struct Storage: Sendable {
     public func snippet(_ key: String) -> URL { snippetsDir.appendingPathComponent("\(key).caddy") }
 
     public func ensureLayout() throws {
-        for d in [tmp, sitesDir, snippetsDir, caddyState] {
+        for d in [tmp, sitesDir, snippetsDir, caddyState, indexDir] {
             try FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
         }
     }

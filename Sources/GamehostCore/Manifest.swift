@@ -12,6 +12,17 @@ public struct Manifest: Codable, Sendable, Equatable {
     public var customHeaders: [Header] = []
     public var cacheMaxAge: Int = 0
     public var releasesKeep: Int = 5
+    /// `[listing]`: how the site appears on the games index. Nil when the section is absent.
+    public var listing: Listing?
+
+    public struct Listing: Codable, Sendable, Equatable {
+        public var title: String
+        public var description: String?
+        /// Path of a cover image inside the bundle.
+        public var cover: String?
+        /// Only listed sites appear on the index.
+        public var listed: Bool = false
+    }
 
     public struct Header: Codable, Sendable, Equatable {
         public var name: String
@@ -24,6 +35,7 @@ public struct Manifest: Codable, Sendable, Equatable {
         case customHeaders = "custom_headers"
         case cacheMaxAge = "cache_max_age"
         case releasesKeep = "releases_keep"
+        case listing
     }
 
     public static let supportedSchemas: Set<Int> = [1]
@@ -40,6 +52,10 @@ public struct Manifest: Codable, Sendable, Equatable {
 
     /// Parses and validates manifest text. Throws `APIError` (`manifest_invalid`) with every problem found.
     public static func parse(_ text: String, apiHostLabel: String) throws -> Manifest {
+        try parse(text, reservedLabels: [apiHostLabel])
+    }
+
+    public static func parse(_ text: String, reservedLabels: Set<String>) throws -> Manifest {
         let root: TOMLTable
         do {
             root = try TOMLTable(string: text)
@@ -85,13 +101,13 @@ public struct Manifest: Codable, Sendable, Equatable {
             }
         }
 
-        unknown(root, allowed: ["schema", "name", "dir", "entry", "headers", "cache", "releases"], prefix: "")
+        unknown(root, allowed: ["schema", "name", "dir", "entry", "headers", "cache", "releases", "listing"], prefix: "")
 
         var m = Manifest(name: "", dir: "")
 
         if let name = string(root, "name", "name") {
             m.name = name
-            problems += Names.problems(siteName: name, apiHostLabel: apiHostLabel).map { "name: \($0)" }
+            problems += Names.problems(siteName: name, reservedLabels: reservedLabels).map { "name: \($0)" }
         } else if root["name"] == nil {
             problems.append("name is required")
         }
@@ -154,10 +170,43 @@ public struct Manifest: Codable, Sendable, Equatable {
             }
         }
 
+        if let listing = table(root, "listing", "listing") {
+            unknown(listing, allowed: ["title", "description", "cover", "listed"], prefix: "listing.")
+            var l = Listing(title: m.name)
+            if let title = string(listing, "title", "listing.title") {
+                if let p = textProblem(title, max: 80, allowEmpty: false) { problems.append("listing.title \(p)") }
+                else { l.title = title }
+            }
+            if let description = string(listing, "description", "listing.description") {
+                if let p = textProblem(description, max: 300, allowEmpty: true) { problems.append("listing.description \(p)") }
+                else if !description.isEmpty { l.description = description }
+            }
+            if let cover = string(listing, "cover", "listing.cover") {
+                let ext = cover.split(separator: ".").last.map { $0.lowercased() } ?? ""
+                if !Names.isSafeRelativePath(cover) || !Names.isPlainPathCharset(cover) {
+                    problems.append("listing.cover must be a relative path of A-Z a-z 0-9 . _ - / characters, without '..' or a leading '/'")
+                } else if !Names.coverExtensions.contains(ext) {
+                    problems.append("listing.cover must be one of: \(Names.coverExtensions.sorted().joined(separator: ", "))")
+                } else {
+                    l.cover = Names.normalize(cover)
+                }
+            }
+            if let listed = bool(listing, "listed", "listing.listed") { l.listed = listed }
+            m.listing = l
+        }
+
         if !problems.isEmpty {
             throw APIError(.unprocessableEntity, "manifest_invalid", "gamehost.toml failed validation.", details: problems)
         }
         return m
+    }
+
+    /// Display text for the games index: no control characters, bounded length. (It is HTML-escaped when rendered.)
+    static func textProblem(_ s: String, max: Int, allowEmpty: Bool) -> String? {
+        if !allowEmpty && s.trimmingCharacters(in: .whitespaces).isEmpty { return "must not be empty" }
+        if s.count > max { return "must be at most \(max) characters" }
+        if s.unicodeScalars.contains(where: { $0.value < 0x20 || $0.value == 0x7F }) { return "must not contain control characters" }
+        return nil
     }
 
     /// Validates a custom header. Values are restricted so that they can never alter the generated Caddy config:

@@ -10,6 +10,9 @@ services:
       GAMEHOST_BASE_DOMAIN: games.example.com
       GAMEHOST_ADMIN_TOKEN: ${GAMEHOST_ADMIN_TOKEN:?set GAMEHOST_ADMIN_TOKEN (at least 32 characters)}
       GAMEHOST_TLS_MODE: external
+      # Optional public games index (sites opt in with [listing] listed = true):
+      # GAMEHOST_INDEX_HOST: arcade.games.example.com
+      # GAMEHOST_INDEX_TITLE: My Games
       # The proxy reaches the container from the Docker bridge gateway; trust it for X-Forwarded-For.
       GAMEHOST_TRUSTED_PROXIES: 172.16.0.0/12
     volumes:

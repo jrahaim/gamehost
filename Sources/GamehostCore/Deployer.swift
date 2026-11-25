@@ -77,7 +77,7 @@ public final class Deployer: Sendable {
     // MARK: Sites
 
     public func createSite(name: String) async throws -> (SiteRecord, String) {
-        let problems = Names.problems(siteName: name, apiHostLabel: config.apiHostFirstLabel)
+        let problems = Names.problems(siteName: name, reservedLabels: config.reservedSiteLabels)
         guard problems.isEmpty else {
             throw APIError(.unprocessableEntity, "name_invalid", "Invalid site name.", details: problems)
         }
@@ -116,6 +116,7 @@ public final class Deployer: Sendable {
             try await proxy.apply(changes)
             for k in keys { FileUtil.removeIfExists(storage.siteDir(k)) }
             try await tokens.revokeAll(for: name)
+            refreshIndex()
             logger.info("site deleted", metadata: ["event": "site_delete", "site": .string(name),
                                                    "previews": .string(previews.joined(separator: ",")),
                                                    "by": .string(principal.logID)])
@@ -141,7 +142,7 @@ public final class Deployer: Sendable {
 
     /// Validates a deploy before any bundle bytes are processed.
     public func target(manifestText: String, preview: String?, principal: Principal) throws -> DeployTarget {
-        let manifest = try Manifest.parse(manifestText, apiHostLabel: config.apiHostFirstLabel)
+        let manifest = try Manifest.parse(manifestText, reservedLabels: config.reservedSiteLabels)
         if let preview, !Names.isValidPreviewLabel(preview) {
             throw APIError(.unprocessableEntity, "preview_label_invalid",
                            "Preview labels are 1-20 characters of a-z, 0-9 and '-', without leading, trailing or doubled '-'.")
@@ -184,6 +185,9 @@ public final class Deployer: Sendable {
         guard unpacked[target.manifest.entry] != nil else {
             throw APIError(.unprocessableEntity, "entry_missing",
                            "The entry file \"\(target.manifest.entry)\" is not at the root of the bundle.")
+        }
+        if let cover = target.manifest.listing?.cover, unpacked[cover] == nil {
+            throw APIError(.unprocessableEntity, "cover_missing", "The listing cover \"\(cover)\" is not in the bundle.")
         }
 
         // 6. Dedupe against the current release with hard links (keeps mtime, so ETags, stable).
@@ -265,6 +269,7 @@ public final class Deployer: Sendable {
 
         // 12. Prune.
         prune(key: key, keep: manifest.releasesKeep, current: releaseID)
+        if target.preview == nil { refreshIndex() }
 
         let result = DeployResult(
             site: target.site, preview: target.preview, url: config.url(forKey: key), release: releaseID,
@@ -352,6 +357,7 @@ public final class Deployer: Sendable {
                 let snippet = CaddyConfig.siteSnippet(key: name, manifest: release.manifest, config: config, storage: storage)
                 try await proxy.apply([name: snippet])
                 try storage.switchCurrent(name, to: targetID)
+                refreshIndex()
             }
             logger.info("rollback", metadata: ["event": "rollback", "site": .string(name), "release": .string(targetID),
                                                "previous_release": .string(currentID), "by": .string(principal.logID)])
@@ -360,6 +366,15 @@ public final class Deployer: Sendable {
     }
 
     // MARK: Maintenance
+
+    /// Rewrites the games index. Never fails the change that triggered it: the site is already live.
+    func refreshIndex() {
+        do {
+            try GamesIndex.write(config: config, storage: storage)
+        } catch {
+            logger.error("games index update failed", metadata: ["event": "index_failed", "error": "\(error)"])
+        }
+    }
 
     /// Deletes previews whose last deploy is older than the TTL.
     public func sweepPreviews(now: Date = Date()) async {
@@ -380,6 +395,7 @@ public final class Deployer: Sendable {
     /// have changed). Writes files only; Caddy is started afterwards.
     public func prepare() throws {
         try storage.ensureLayout()
+        defer { refreshIndex() }
         try storage.sweepTmp()
         try FileUtil.atomicWrite(Data(CaddyConfig.mainCaddyfile(config, storage: storage).utf8), to: config.caddyfilePath)
         var live = Set<String>()
